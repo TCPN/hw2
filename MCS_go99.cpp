@@ -11,7 +11,7 @@
 #include <cstdlib>
 #include <ctime>
 
-#define NAME MCS_go99
+#define NAME "MCS_go99"
 #define BOARDSIZE        9
 #define BOUNDARYSIZE    11
 #define COMMANDLENGTH 1000
@@ -94,11 +94,12 @@ int find_liberty(int X, int Y, int label, int Board[BOUNDARYSIZE][BOUNDARYSIZE],
 void count_liberty(int X, int Y, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int Liberties[MAXDIRECTION]) {
     int ConnectBoard[BOUNDARYSIZE][BOUNDARYSIZE];
     // Initial the ConnectBoard
-    for (int i = 0 ; i < BOUNDARYSIZE; ++i) {
-	for (int j = 0 ; j < BOUNDARYSIZE; ++j) {
-	    ConnectBoard[i][j] = 0;
-	}
-    }
+    // for (int i = 0 ; i < BOUNDARYSIZE; ++i) {
+	// for (int j = 0 ; j < BOUNDARYSIZE; ++j) {
+	    // ConnectBoard[i][j] = 0;
+	// }
+    // }
+	memset(ConnectBoard, 0, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
     // Find the same connect component and its liberity
     for (int d = 0 ; d < MAXDIRECTION; ++d) {
 	Liberties[d] = 0;
@@ -346,11 +347,12 @@ int gen_legal_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_len
 		}
 		if (next_x !=0 && next_y !=0) {
 		// copy the current board to next board
-		    for (int i = 0 ; i < BOUNDARYSIZE; ++i) {
-			for (int j = 0 ; j < BOUNDARYSIZE; ++j) {
-			    NextBoard[i][j] = Board[i][j];
-			}
-		    }
+		    // for (int i = 0 ; i < BOUNDARYSIZE; ++i) {
+			// for (int j = 0 ; j < BOUNDARYSIZE; ++j) {
+			    // NextBoard[i][j] = Board[i][j];
+			// }
+		    // }
+			memcpy(NextBoard, Board, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
 		    // do the move
 		    // The move is a capture move and the board needs to be updated.
 		    if (eat_move == 1) {
@@ -665,7 +667,7 @@ void gtp_protocol_version() {
     cout <<"= 2"<<endl<< endl;
 }
 void gtp_name() {
-    cout <<"= TCG-MCS_Go99" << endl<< endl;
+    cout <<"= " NAME << endl<< endl;
 }
 void gtp_version() {
     cout << "= 1.02" << endl << endl;

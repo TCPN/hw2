@@ -1,0 +1,42 @@
+Theory of Computer Games, NTU
+
+Homework #2
+
+Due date: 2:20pm, December 24, 2015.
+
+Description:
+Write a program that plays 9*9 Go with Monte-Carlo game tree search
+techniques. The purpose of this homework is to ask you to master the
+basic techniques of Monte-Carlo tree search, not to test your efforts in
+designing GUI.
+
+Rules for Special 9*9 Go:
+1. Black plays first.
+2. String without liberty is removed.
+3. The rule of Ko: You cannot place a stone and result in a previous position.
+after the removing of strings without liberty.
+That is, you cannot create a loop.
+4. You can pass, but cannot play a suicide ply.
+5. You can place a stone in a place without liberty if
+as a result you can capture opponent's stones.
+6. When both players pass in consecutive plys, the game ends.
+7. The one with more stones and eyes wins at the end of the game.
+8. When calculating the final score, the black side, namely the
+first player, has a penalty of 7 stones, which is set by what is called Komi.
+9. Each ply must be finished in 10 seconds.
+
+Solution Package:
+1. Source Code
+2. Report
+   Explain the techniques you implemented and the coefficients you picked.
+   Explain how they are picked.
+3. Need to implement at least UCB, UCT and progressive pruning.
+   The rest are bonus.
+
+Grading policy:
+1. coding of needed functions +
+can play a complete game with the given default template
+2. documentation
+3. Bonus: win rate againt all other students
+4. Bonus: win rate againt the benchmark
+

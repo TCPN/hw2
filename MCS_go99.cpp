@@ -61,29 +61,31 @@ void reset(int Board[BOUNDARYSIZE][BOUNDARYSIZE]) {
 	Board[0][i] = Board[BOUNDARYSIZE-1][i] = Board[i][0] = Board[i][BOUNDARYSIZE-1] = BOUNDARY;
     }
 }
-
+// TODO: MAKE FIND_LIBERTY MORE EFFICIENT, BY GIVE RESULTS WITH 0, 1, 2(MEANS ">1")
+// TODO: KEEP A "CHI" LIST OF EACH STRING
 /*
  * This function return the total number of liberity of the string of (X, Y) and
  * the string will be label with 'label'.
  * */
 int find_liberty(int X, int Y, int label, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int ConnectBoard[BOUNDARYSIZE][BOUNDARYSIZE]) {
     // Label the current intersection
-    ConnectBoard[X][Y] |= label;
+	// modified!!!!
+    //ConnectBoard[X][Y] |= label;
     int total_liberty = 0;
     for (int d = 0 ; d < MAXDIRECTION; ++d) {
-	// Check this intersection has been visited or not
-	if ((ConnectBoard[X+DirectionX[d]][Y+DirectionY[d]] & (1<<label) )!= 0) continue;
-
-	// Check this intersection is not visited yet
-	ConnectBoard[X+DirectionX[d]][Y+DirectionY[d]] |=(1<<label);
-	// This neighboorhood is empty
-	if (Board[X+DirectionX[d]][Y+DirectionY[d]] == EMPTY){
-	    total_liberty++;
-	}
-	// This neighboorhood is self stone
-	else if (Board[X+DirectionX[d]][Y+DirectionY[d]] == Board[X][Y]) {
-	    total_liberty += find_liberty(X+DirectionX[d], Y+DirectionY[d], label, Board, ConnectBoard);
-	}
+		// Check this intersection has been visited or not
+		if ((ConnectBoard[X+DirectionX[d]][Y+DirectionY[d]] & (1<<label) )!= 0)
+			continue;
+		// Check this intersection is not visited yet
+		ConnectBoard[X+DirectionX[d]][Y+DirectionY[d]] |=(1<<label);
+		// This neighboorhood is empty
+		if (Board[X+DirectionX[d]][Y+DirectionY[d]] == EMPTY){
+			total_liberty++;
+		}
+		// This neighboorhood is self stone
+		else if (Board[X+DirectionX[d]][Y+DirectionY[d]] == Board[X][Y]) {
+			total_liberty += find_liberty(X+DirectionX[d], Y+DirectionY[d], label, Board, ConnectBoard);
+		}
     }
     return total_liberty;
 }
@@ -160,6 +162,7 @@ int remove_piece(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int turn) 
     }
     return remove_stones;
 }
+// TODO: MAKE UPDATE_BOARD USE LIBERTIES INFO IF IT'S KNOWN ALREADY
 /*
  * This function update Board with place turn's piece at (X,Y).
  * Note that this function will not check if (X, Y) is a legal move or not.
@@ -248,6 +251,121 @@ int update_board_check(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int 
     return (legal_flag==1)?1:0;
 }
 
+int check_legal(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int x, int y, int turn, int game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]){
+
+    int NextBoard[BOUNDARYSIZE][BOUNDARYSIZE];
+    int num_neighborhood_self;
+    int num_neighborhood_oppo;
+    int num_neighborhood_empt;
+    int num_neighborhood_boun;
+    int need_check_history;
+    int Liberties[4];
+    int NeighboorhoodState[4];
+    bool eat_move;
+	if (Board[x][y] == EMPTY) {
+		// check the liberty of the neighborhood intersections
+		num_neighborhood_self = 0;
+		num_neighborhood_oppo = 0;
+		num_neighborhood_empt = 0;
+		num_neighborhood_boun = 0;
+		// count the number of empy, self, opponent, and boundary neighboorhood
+		count_neighboorhood_state(Board, x, y, turn,
+			&num_neighborhood_empt,
+			&num_neighborhood_self,
+			&num_neighborhood_oppo,
+			&num_neighborhood_boun, NeighboorhoodState);
+		// check if the emtpy intersection is a legal move
+		need_check_history = 0;
+		eat_move = 0;
+		count_liberty(x, y, Board, Liberties);
+		// Case 1: exist empty intersection in the neighborhood
+		if (num_neighborhood_empt > 0) {
+			need_check_history = 1;
+			// check if it is a capture move
+			for (int d = 0 ; d < MAXDIRECTION; ++d) {
+				if (NeighboorhoodState[d] == OPPONENT && Liberties[d] == 1) {
+					 eat_move = 1;
+				}
+			}
+		}
+		// Case 2: no empty intersection in the neighborhood
+		else {
+			// Case 2.1: Surround by the self piece
+			if (num_neighborhood_self + num_neighborhood_boun == MAXDIRECTION) {
+				int check_flag = 0, check_eye_flag = num_neighborhood_boun;
+				for (int d = 0 ; d < MAXDIRECTION; ++d) {
+					//modified!!!
+					// Avoid fill self eye
+					// Check if there is one self component which has more than one liberty
+					if (NeighboorhoodState[d]==SELF && Liberties[d] > 1) {
+						check_eye_flag++;
+						check_flag = 1;
+					}
+				}
+				if (check_flag == 1 && check_eye_flag!=4) {
+					need_check_history = 1;
+				}
+			}	
+			// Case 2.2: Surround by opponent or both side's pieces.
+			else if (num_neighborhood_oppo > 0) {
+				for (int d = 0 ; d < MAXDIRECTION; ++d) {
+					// Check if there is one self component which has more than one liberty
+					if (NeighboorhoodState[d]==SELF && Liberties[d] > 1) {
+						need_check_history = 1;
+					}
+					// Check if there is one opponent's component which has exact one liberty
+					if (NeighboorhoodState[d]==OPPONENT && Liberties[d] == 1) {						
+						need_check_history = 1;
+						eat_move = 1;
+					}
+				}
+				// modified!!!!
+			}	
+		}
+		if (need_check_history == 1) {
+		// copy the current board to next board
+			// for (int i = 0 ; i < BOUNDARYSIZE; ++i) {
+				// for (int j = 0 ; j < BOUNDARYSIZE; ++j) {
+					// NextBoard[i][j] = Board[i][j];
+				// }
+			// }
+			memcpy(NextBoard, Board, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
+			// do the move
+			// The move is a capture move and the board needs to be updated.
+			if (eat_move == 1) {
+				update_board(NextBoard, x, y, turn);
+			}
+			else {
+				NextBoard[x][y] = turn;
+			}
+			// Check the history to avoid the repeat board
+			// TODO: FIND A MORE EFFICIENT WAY TO COMPARE HISTORY
+			//bool repeat_move = 0;
+			for (int t = 0 ; t < game_length; ++t) {
+				bool repeat_flag = 1;
+				for (int i = 1; i <=BOARDSIZE; ++i) {
+					for (int j = 1; j <=BOARDSIZE; ++j) {
+						if (NextBoard[i][j] != GameRecord[t][i][j]) {
+							repeat_flag = 0;
+						}
+					}
+				}
+				if (repeat_flag == 1) {
+					//repeat_move = 1;
+					return 0;
+				}
+			}
+			//if (repeat_move == 0) {
+				// 3 digit zxy, z means eat or not, and put at (x, y)
+				return eat_move * 100 + x * 10 + y ;
+			// }
+			//modified!!!
+		}
+	}
+	return 0;
+}
+
+// TODO: FIND A MORE EFFICIENT WAY TO GENERATE ALL LEGAL MOVE
 /*
  * This function return the number of legal moves with clor "turn" and
  * saves all legal moves in MoveList
@@ -386,6 +504,29 @@ int gen_legal_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_len
     }
     return legal_moves;
 }
+// TODO: MAKE RANDOM MOVE MORE EFFICIENT
+// ::DOING: Random pick a move and check whether it is legal.
+int rand_gen_legal_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]) {
+    unsigned char MoveList[BOARDSIZE * BOARDSIZE];
+	int moveN = 0;
+	for(int i = 1; i <= BOARDSIZE; i ++){
+		for(int j = 1; j <= BOARDSIZE; j ++){
+			MoveList[moveN] = ((i<<4) + j);
+			moveN ++;
+		}
+	}
+    int returned_move = 0;
+    while(moveN > 0) {
+		int move_id = rand()%moveN;
+		int move = MoveList[move_id];
+		returned_move = check_legal(Board, (move>>4)&15, move&15, turn, game_length, GameRecord);
+		if(returned_move > 0)
+			return returned_move;
+		moveN --;
+		MoveList[move_id] = MoveList[moveN];
+	}
+	return 0;
+}
 /*
  * This function randomly selects one move from the MoveList.
  * */
@@ -460,17 +601,17 @@ double final_score(int Board[BOUNDARYSIZE][BOUNDARYSIZE]) {
 #define NEXTTURN(t) ((t)==BLACK?WHITE:BLACK)
 /* */
 int simulate(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]) {
-    int MoveList[HISTORYLENGTH];
+    // int MoveList[HISTORYLENGTH];
     int num_legal_moves = 0;
     int return_move = 0;
 	int prevPassMove = 0;
 	
 	while(true)
 	{
-		num_legal_moves = gen_legal_move(Board, turn, game_length, GameRecord, MoveList);
-		if(num_legal_moves != 0)
+		return_move = rand_gen_legal_move(Board, turn, game_length, GameRecord);
+		if(return_move != 0)
 		{
-			return_move = rand_pick_move(num_legal_moves, MoveList);
+			// return_move = rand_pick_move(num_legal_moves, MoveList);
 			prevPassMove = 0;
 			do_move(Board, turn, return_move);
 		}
@@ -578,7 +719,11 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 			winP = 0;
 			exScore = 0;
 		}
-		if(winP > maxwinP || (winP == maxwinP && exScore > maxExScore))
+		if(winP > maxwinP || 
+			(winP == maxwinP && 
+				((turn == BLACK && exScore > maxExScore) ||
+				 (turn == WHITE && exScore < maxExScore)
+				)))
 		{
 			keeper_idx = m_idx;
 			maxwinP = winP;
@@ -588,7 +733,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 	//return_move = rand_pick_move(num_legal_moves, MoveList);
     return_move = MoveList[keeper_idx];
 	fprintf(stderr, "N=%d P(win)=%.2llf E(score)=%.2llf\n",TestN[keeper_idx], maxwinP, maxExScore);
-
+	fprintf(stderr, ">>> Decision to move:%d\n", return_move);
     do_move(Board, turn, return_move);
 
     return return_move % 100;

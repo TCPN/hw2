@@ -11,7 +11,7 @@
 #include <cstdlib>
 #include <ctime>
 
-#define NAME MCS_go99
+#define NAME "MCS_go99"
 #define BOARDSIZE        9
 #define BOUNDARYSIZE    11
 #define COMMANDLENGTH 1000
@@ -96,6 +96,7 @@ int find_liberty(int X, int Y, int label, int Board[BOUNDARYSIZE][BOUNDARYSIZE],
 void count_liberty(int X, int Y, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int Liberties[MAXDIRECTION]) {
     int ConnectBoard[BOUNDARYSIZE][BOUNDARYSIZE];
     // Initial the ConnectBoard
+	// memset(ConnectBoard, 0, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
     for (int i = 0 ; i < BOUNDARYSIZE; ++i) {
 	for (int j = 0 ; j < BOUNDARYSIZE; ++j) {
 	    ConnectBoard[i][j] = 0;
@@ -464,6 +465,7 @@ int gen_legal_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_len
 		}
 		if (next_x !=0 && next_y !=0) {
 		// copy the current board to next board
+			//memcpy(NextBoard, Board, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
 		    for (int i = 0 ; i < BOUNDARYSIZE; ++i) {
 			for (int j = 0 ; j < BOUNDARYSIZE; ++j) {
 			    NextBoard[i][j] = Board[i][j];
@@ -681,7 +683,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		simulate(SimBoard, NEXTTURN(turn), game_length+1, SimGameRecord);
 		
 		double result = final_score(SimBoard) - _komi;
-		if(result > 100) fprintf(stderr, "ERROR win by score=%llf\n", result);
+		if(result > 100) fprintf(stderr, "ERROR win by score=%f\n", result);
 		score[m_idx] += result;
 		if((turn == BLACK && result > 0) || (turn == WHITE && result < 0)) // win
 			WinN[m_idx] ++ ;
@@ -711,7 +713,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		{
 			winP = (WinN[m_idx] / (double)TestN[m_idx]);
 			exScore = score[m_idx] / TestN[m_idx];
-			if(exScore > 100) fprintf(stderr, "ERROR exScore=%llf score[%d]=%llf TestN[%d]=%d \n", exScore, m_idx, score[m_idx], m_idx, TestN[m_idx]);
+			if(exScore > 100) fprintf(stderr, "ERROR exScore=%f score[%d]=%f TestN[%d]=%d \n", exScore, m_idx, score[m_idx], m_idx, TestN[m_idx]);
 			//if(winP > 1) fprintf(stderr, "winP=%.2f WinN=%d testN=%d\n", winP, WinN[m_idx], TestN[m_idx]);
 		}
 		else
@@ -732,7 +734,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 	}
 	//return_move = rand_pick_move(num_legal_moves, MoveList);
     return_move = MoveList[keeper_idx];
-	fprintf(stderr, "N=%d P(win)=%.2llf E(score)=%.2llf\n",TestN[keeper_idx], maxwinP, maxExScore);
+	fprintf(stderr, "N=%d P(win)=%.2f E(score)=%.2f\n",TestN[keeper_idx], maxwinP, maxExScore);
 	fprintf(stderr, ">>> Decision to move:%d\n", return_move);
     do_move(Board, turn, return_move);
 
@@ -810,7 +812,7 @@ void gtp_protocol_version() {
     cout <<"= 2"<<endl<< endl;
 }
 void gtp_name() {
-    cout <<"= TCG-MCS_Go99" << endl<< endl;
+    cout <<"= " NAME<< endl<< endl;
 }
 void gtp_version() {
     cout << "= 1.02" << endl << endl;

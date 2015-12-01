@@ -62,12 +62,13 @@ void reset(int Board[BOUNDARYSIZE][BOUNDARYSIZE]) {
     }
 }
 // TODO: MAKE FIND_LIBERTY MORE EFFICIENT, BY GIVE RESULTS WITH 0, 1, 2(MEANS ">1")
+// ::DONE 
 // TODO: KEEP A "CHI" LIST OF EACH STRING
 /*
  * This function return the total number of liberity of the string of (X, Y) and
  * the string will be label with 'label'.
  * */
-int find_liberty(int X, int Y, int label, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int ConnectBoard[BOUNDARYSIZE][BOUNDARYSIZE]) {
+int find_liberty(int X, int Y, int label, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int ConnectBoard[BOUNDARYSIZE][BOUNDARYSIZE], int foundLiberty) {
     // Label the current intersection
 	// modified!!!!
     //ConnectBoard[X][Y] |= label;
@@ -84,8 +85,10 @@ int find_liberty(int X, int Y, int label, int Board[BOUNDARYSIZE][BOUNDARYSIZE],
 		}
 		// This neighboorhood is self stone
 		else if (Board[X+DirectionX[d]][Y+DirectionY[d]] == Board[X][Y]) {
-			total_liberty += find_liberty(X+DirectionX[d], Y+DirectionY[d], label, Board, ConnectBoard);
+			total_liberty += find_liberty(X+DirectionX[d], Y+DirectionY[d], label, Board, ConnectBoard, total_liberty);
 		}
+		if(total_liberty + foundLiberty > 1)
+			return total_liberty;
     }
     return total_liberty;
 }
@@ -107,7 +110,7 @@ void count_liberty(int X, int Y, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int Libe
 	Liberties[d] = 0;
 	if (Board[X+DirectionX[d]][Y+DirectionY[d]] == BLACK ||  
 	    Board[X+DirectionX[d]][Y+DirectionY[d]] == WHITE    ) {
-	    Liberties[d] = find_liberty(X+DirectionX[d], Y+DirectionY[d], d, Board, ConnectBoard);
+	    Liberties[d] = find_liberty(X+DirectionX[d], Y+DirectionY[d], d, Board, ConnectBoard, 0);
 		//fprintf(stderr, "liberty in dir %d: %d\n", d, Liberties[d]);
 	}
     }

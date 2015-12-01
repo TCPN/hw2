@@ -164,11 +164,12 @@ int remove_piece(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int turn) 
     return remove_stones;
 }
 // TODO: MAKE UPDATE_BOARD USE LIBERTIES INFO IF IT'S KNOWN ALREADY
+// :: DONE
 /*
  * This function update Board with place turn's piece at (X,Y).
  * Note that this function will not check if (X, Y) is a legal move or not.
  * */
-void update_board(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int turn) {
+void update_board(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int turn, int KnownLiberties[4]) {
     int num_neighborhood_self = 0;
     int num_neighborhood_oppo = 0;
     int num_neighborhood_empt = 0;
@@ -182,14 +183,17 @@ void update_board(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int turn)
 	    &num_neighborhood_boun, NeighboorhoodState);
     // check if there is opponent piece in the neighboorhood
     if (num_neighborhood_oppo != 0) {
-	count_liberty(X, Y, Board, Liberties);
-	for (int d = 0 ; d < MAXDIRECTION; ++d) {
-	    // check if there is opponent component only one liberty
-	    if (NeighboorhoodState[d] == OPPONENT && Liberties[d] <= 1 && Board[X+DirectionX[d]][Y+DirectionY[d]]!=EMPTY) {
-		//fprintf(stderr, "some dead in direction %d!\n", d);
-		remove_piece(Board, X+DirectionX[d], Y+DirectionY[d], Board[X+DirectionX[d]][Y+DirectionY[d]]);
-	    }
-	}
+		if(KnownLiberties != NULL)
+			memcpy(Liberties, KnownLiberties, sizeof(int) * 4);
+		else
+			count_liberty(X, Y, Board, Liberties);
+		for (int d = 0 ; d < MAXDIRECTION; ++d) {
+			// check if there is opponent component only one liberty
+			if (NeighboorhoodState[d] == OPPONENT && Liberties[d] <= 1 && Board[X+DirectionX[d]][Y+DirectionY[d]]!=EMPTY) {
+				//fprintf(stderr, "some dead in direction %d!\n", d);
+				remove_piece(Board, X+DirectionX[d], Y+DirectionY[d], Board[X+DirectionX[d]][Y+DirectionY[d]]);
+			}
+		}
     }
     Board[X][Y] = turn;
 }
@@ -334,7 +338,7 @@ int check_legal(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int x, int y, int turn, i
 			// do the move
 			// The move is a capture move and the board needs to be updated.
 			if (eat_move == 1) {
-				update_board(NextBoard, x, y, turn);
+				update_board(NextBoard, x, y, turn, Liberties);
 			}
 			else {
 				NextBoard[x][y] = turn;
@@ -474,7 +478,8 @@ int gen_legal_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_len
 		    // do the move
 		    // The move is a capture move and the board needs to be updated.
 		    if (eat_move == 1) {
-			update_board(NextBoard, next_x, next_y, turn);
+			// update_board(NextBoard, next_x, next_y, turn);
+			update_board(NextBoard, x, y, turn, Liberties);
 		    }
 		    else {
 			NextBoard[x][y] = turn;
@@ -507,7 +512,7 @@ int gen_legal_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_len
     return legal_moves;
 }
 // TODO: MAKE RANDOM MOVE MORE EFFICIENT
-// ::DOING: Random pick a move and check whether it is legal.
+// ::DONE: Random pick a move and check whether it is legal.
 int rand_gen_legal_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]) {
     unsigned char MoveList[BOARDSIZE * BOARDSIZE];
 	int moveN = 0;
@@ -552,7 +557,8 @@ void do_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int move) {
 	Board[move_x][move_y] = turn;
     }
     else {
-	update_board(Board, move_x, move_y, turn);
+	// update_board(Board, move_x, move_y, turn);
+	update_board(Board, move_x, move_y, turn, NULL);
     }
 
 }
@@ -866,7 +872,8 @@ void gtp_play(char Color[], char Move[], int Board[BOUNDARYSIZE][BOUNDARYSIZE], 
 	move_j = Move[0]-'A'+1;
 	if (move_j == 10) move_j = 9;
 	move_i = 10-(Move[1]-'0');
-	update_board(Board, move_i, move_j, turn);
+	// update_board(Board, move_i, move_j, turn);
+	update_board(Board, move_i, move_j, turn, NULL);
 	record(Board, GameRecord, game_length+1);
     }
     cout << "= "<<endl<<endl;

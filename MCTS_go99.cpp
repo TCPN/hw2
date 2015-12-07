@@ -1160,7 +1160,7 @@ int main(int argc, char* argv[]) {
 				_simuPerNewNode = simu;
 			else
 				fprintf(dmsgStream, "a invalid value \"%s\" following -nodesim\n", argv[argi]);
-			fprintf(dmsgStream, "do %d simulations for each new node. \n", simu);
+			fprintf(dmsgStream, "do %d simulations for each new node. \n", _simuPerNewNode);
 		}
 		else if (strcmp(argv[argi], "-dmsgfile")==0) {
 			argi ++;

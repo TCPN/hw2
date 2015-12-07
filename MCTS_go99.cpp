@@ -717,7 +717,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
     start_t = clock();
     // calculate the time bound
     end_t = start_t + CLOCKS_PER_SEC * (time_limit - BUFFTIME);
-	fprintf(dmsgStream, "===== GENERATE MOVE for %s =====\n", (turn == BLACK ? "Black" : "White" ));
+	fprintf(dmsgStream, "===== GENERATE MOVE for %s (%d) =====\n", (turn == BLACK ? "Black" : "White" ), game_length);
 	fprintf(dmsgStream, "start time:%.2fs limit:%d end time:%.2fs\n", start_t/(double)CLOCKS_PER_SEC, time_limit, end_t/(double)CLOCKS_PER_SEC);
 	
 	// TODO: some game nodes can be reuse even after opponent moved ?
@@ -1159,8 +1159,8 @@ int main(int argc, char* argv[]) {
 			if(simu > 0)
 				_simuPerNewNode = simu;
 			else
-				fprintf(dmsgStream, "a invalid value following -nodesim\n", argv[argi]);
-			fprintf(dmsgStream, "Cannot open the file %s. \n", argv[argi]);
+				fprintf(dmsgStream, "a invalid value \"%s\" following -nodesim\n", argv[argi]);
+			fprintf(dmsgStream, "do %d simulations for each new node. \n", simu);
 		}
 		else if (strcmp(argv[argi], "-dmsgfile")==0) {
 			argi ++;
@@ -1169,6 +1169,7 @@ int main(int argc, char* argv[]) {
 			FILE * fp = fopen(argv[argi], "a");
 			if(fp != NULL)
 			{
+				fprintf(stderr, "debug messages will go into the file \"%s\". \n", argv[argi]);
 				dmsgStream = fp;
 				time_t tm = time(NULL);
 				fprintf(fp, "\n==================================================\n");
@@ -1176,7 +1177,7 @@ int main(int argc, char* argv[]) {
 			}
 			else
 			{
-				fprintf(dmsgStream, "Cannot open the file %s. \n", argv[argi]);
+				fprintf(stderr, "Cannot open the file \"%s\". \n", argv[argi]);
 			}
 		}
 	}

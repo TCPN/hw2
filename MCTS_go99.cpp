@@ -10,8 +10,9 @@
 #include <cstring>
 #include <cstdlib>
 #include <ctime>
+#include <cmath>
 
-#define NAME "TCG-MCTS_go99"
+#define NAME "TCG-MCTSUCB_go99"
 #define BOARDSIZE        9
 #define BOUNDARYSIZE    11
 #define COMMANDLENGTH 1000
@@ -49,8 +50,9 @@ const char LabelX[]="0ABCDEFGHJ";
 
 int _simuPerNewNode = 10;
 // currently, every expanded node get 10 simulations before back propagation
-#define BUFFTIME         0.06
+#define BUFFTIME         0.005
 // a deadline of left time to stop computing
+double _exploration_factor = 1.414;
 FILE * dmsgStream = stderr;
 
 /*
@@ -395,10 +397,10 @@ int gen_legal_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_len
     bool eat_move;
 	int x, y;
 	// for init step consider only intersects in upper left board
-	int considerArea = (game_length == 0 ? (BOARDSIZE+1)/2 : BOARDSIZE);
+	int considerArea = (game_length <= 0 ? (BOARDSIZE+1)/2 : BOARDSIZE);
 	// TODO: change the order of checking move, to coiled
-    for (x = 1 ; x <= BOARDSIZE; ++x) {
-	for (y = 1 ; y <= BOARDSIZE; ++y) {
+    for (x = 1 ; x <= considerArea; ++x) {
+	for (y = 1 ; y <= considerArea; ++y) {
 	    // check if current 
 	    if (Board[x][y] == EMPTY) {
 			// check the liberty of the neighborhood intersections
@@ -418,7 +420,7 @@ int gen_legal_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_len
 			count_liberty(x, y, Board, Liberties);
 			// Case 1: exist empty intersection in the neighborhood
 			if (num_neighborhood_empt > 0) {
-				// TODO: Will these cases really lead to Ko ???
+				// TODO: Will these cases really lead to Ko ??? should Ko just limit to the previous move ?
 				need_check_history = 1;
 				// check if it is a capture move
 				for (int d = 0 ; d < MAXDIRECTION; ++d) {
@@ -718,7 +720,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
     // calculate the time bound
     end_t = start_t + CLOCKS_PER_SEC * (time_limit - BUFFTIME);
 	fprintf(dmsgStream, "===== GENERATE MOVE for %s (%d) =====\n", (turn == BLACK ? "Black" : "White" ), game_length);
-	fprintf(dmsgStream, "start time:%.2fs limit:%d end time:%.2fs\n", start_t/(double)CLOCKS_PER_SEC, time_limit, end_t/(double)CLOCKS_PER_SEC);
+	fprintf(dmsgStream, "start time:%.3fs limit:%d end time:%.3fs\n", start_t/(double)CLOCKS_PER_SEC, time_limit, end_t/(double)CLOCKS_PER_SEC);
 	
 	// TODO: some game nodes can be reuse even after opponent moved ?
 	
@@ -733,6 +735,8 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 	int node_game_length;
 	int keeper_id;
 	double win_rate, max_win_rate;
+	double ucb_score, max_ucb_score;
+	double logTotalN, divByNi;
 	int MoveList[HISTORYLENGTH];
 	int MovedBoard[HISTORYLENGTH][BOUNDARYSIZE][BOUNDARYSIZE];
 	int num_legal_moves;
@@ -745,24 +749,30 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		
 	//   Selection
 		// fprintf(dmsgStream, "Selection:");
+		// !!! assert (root->bWinN + root->wWinN + root->drawN) > 0
+		logTotalN = log(root->bWinN + root->wWinN + root->drawN);
 		node = root;
 		node_turn = turn;
 		node_game_length = game_length;
 		// fprintf(dmsgStream, " start from %d:root ", node_game_length);
 		while(node->childN > 0 && node->Children) { // go on while not leaf
 			keeper_id = 0;
-			max_win_rate = 0;
+			max_ucb_score = 0;
 			for(i = 0; i < node->childN; i ++) {
-				win_rate = (node_turn == BLACK ? node->Children[i].bWinN : node->Children[i].wWinN)
-							/ (double)(node->Children[i].bWinN + node->Children[i].wWinN + node->Children[i].drawN);
+				// TODO: if calculate the win rate when back propagation, and store it, the calculation times could be reduce
+				// !!! assert (node->Children[i].bWinN + node->Children[i].wWinN + node->Children[i].drawN) > 0
+				divByNi = 1 / (double)(node->Children[i].bWinN + node->Children[i].wWinN + node->Children[i].drawN);
+				ucb_score = ((node_turn == BLACK ? node->Children[i].bWinN : node->Children[i].wWinN) * divByNi)
+							+ _exploration_factor * sqrt(logTotalN * divByNi);
 				// for now, do not take the lose rate as 2nd comparator
-				if(win_rate > max_win_rate)
+				if(ucb_score > max_ucb_score)
 				{
 					keeper_id = i;
-					max_win_rate = win_rate;
+					max_ucb_score = ucb_score;
 				}
 			}
 			// fprintf(dmsgStream, "-> %d:%s %d(%.2f) ", node_game_length+1, node_turn==BLACK?"b":"w" , node->Children[keeper_id].move, max_win_rate);
+			// fprintf(dmsgStream, "-> %d:%s %d(%.3f) ", node_game_length+1, node_turn==BLACK?"b":"w" , node->Children[keeper_id].move, max_ucb_score);
 			node = &(node->Children[keeper_id]);
 			node_turn = NEXTTURN(node_turn);
 			node_game_length ++;
@@ -834,7 +844,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 			newDrawN += node->Children[i].drawN;
 		}
 		if(node->childN == 0) { // when node is a end node
-			// TODO: is this right ?????
+			// TODO: is this right : directly add some sample when a PV path leading to game end is selected?????
 			result = final_score(SimBoard) - _komi;
 			if(result > 0)
 				newBWinN = _simuPerNewNode;
@@ -865,7 +875,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		}
 	}
 	fprintf(dmsgStream, "roundCount:%d simu count:%d ", roundCount, simuCount);
-	fprintf(dmsgStream, "current time:%.2fs time bound:%.2fs\n",now_t/(double)CLOCKS_PER_SEC,end_t/(double)CLOCKS_PER_SEC);
+	fprintf(dmsgStream, "current time:%.3fs time bound:%.3fs\n",now_t/(double)CLOCKS_PER_SEC,end_t/(double)CLOCKS_PER_SEC);
 	
 	// Pick a Child with Best Win Rate from Root
 	keeper_id = -1;
@@ -875,6 +885,9 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		testNi = (root->Children[i].bWinN + root->Children[i].wWinN + root->Children[i].drawN);
 		if(testNi > 0)
 			win_rate = (turn == BLACK ? root->Children[i].bWinN : root->Children[i].wWinN) / (double)testNi;
+		// fprintf(dmsgStream, "P%d=%.2f", root->Children[i].move, win_rate);
+		// fprintf(dmsgStream, "=%d/%d ",(turn == BLACK ? root->Children[i].bWinN : root->Children[i].wWinN), testNi);
+
 		// for now, do not take the lose rate or score as 2nd comparator
 		if(win_rate > max_win_rate)
 		{
@@ -1136,6 +1149,9 @@ void gtp_main(int display) {
 	    }
 	    gtp_final_score(Board);
 	}
+	else {
+		printf("? unknown command\n");
+	}
     }
 }
 int main(int argc, char* argv[]) {
@@ -1153,19 +1169,34 @@ int main(int argc, char* argv[]) {
 		}
 		else if (strcmp(argv[argi], "-nodesim")==0) {
 			argi ++;
-			if(argi >= argc)
+			if(argi >= argc){
+				fprintf(dmsgStream, "parameter for -nodesim is not given. \n");
 				break;
+			}
 			int simu = atoi(argv[argi]);
 			if(simu > 0)
 				_simuPerNewNode = simu;
 			else
 				fprintf(dmsgStream, "a invalid value \"%s\" following -nodesim\n", argv[argi]);
-			fprintf(dmsgStream, "do %d simulations for each new node. \n", _simuPerNewNode);
+		}
+		else if (strcmp(argv[argi], "-explr")==0) {
+			argi ++;
+			if(argi >= argc){
+				fprintf(dmsgStream, "parameter for -explr is not given. \n");
+				break;
+			}
+			int explr = atof(argv[argi]);
+			if(explr > 0)
+				_exploration_factor = explr;
+			else
+				fprintf(dmsgStream, "a invalid value \"%s\" following -explr\n", argv[argi]);
 		}
 		else if (strcmp(argv[argi], "-dmsgfile")==0) {
 			argi ++;
-			if(argi >= argc)
+			if(argi >= argc){
+				fprintf(dmsgStream, "parameter for -dmsgfile is not given. \n");
 				break;
+			}
 			FILE * fp = fopen(argv[argi], "a");
 			if(fp != NULL)
 			{
@@ -1181,6 +1212,8 @@ int main(int argc, char* argv[]) {
 			}
 		}
 	}
+	fprintf(dmsgStream, "do %d simulations for each new node. \n", _simuPerNewNode);
+	fprintf(dmsgStream, "exploration factor = %f. \n", _exploration_factor);
 	// important fix
 	srand(time(NULL));
     gtp_main(display);

@@ -661,7 +661,7 @@ int simulate(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_length, i
 
 typedef struct game_node {
 	int Board[BOUNDARYSIZE][BOUNDARYSIZE];
-	int move; // not used at root
+	int lastmove; // not used at root
 	// int Board[BOARDSIZE][BOARDSIZE];
 	// int turn;
 	// int game_length;
@@ -690,7 +690,7 @@ void init_game_node(GameNode * node, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int 
 		memcpy(node->Board, Board, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
 	else
 		reset(node->Board);
-	node->move = move;
+	node->lastmove = move;
 	node->bWinN = node->wWinN = node->drawN = 0;
 	node->childN = 0;
 	node->Children = NULL;
@@ -818,8 +818,8 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 			}
 			if(node->Children[keeper_id] == NULL)
 				break;
-			// fprintf(dmsgStream, "-> %d:%s %d(%.2f) ", node_game_length+1, node_turn==BLACK?"b":"w" , node->Children[keeper_id]->move, max_win_rate);
-			// fprintf(dmsgStream, "-> %d:%s %d(%.3f) ", node_game_length+1, node_turn==BLACK?"b":"w" , node->Children[keeper_id]->move, max_ucb_score);
+			// fprintf(dmsgStream, "-> %d:%s %d(%.2f) ", node_game_length+1, node_turn==BLACK?"b":"w" , node->Children[keeper_id]->lastmove, max_win_rate);
+			// fprintf(dmsgStream, "-> %d:%s %d(%.3f) ", node_game_length+1, node_turn==BLACK?"b":"w" , node->Children[keeper_id]->lastmove, max_ucb_score);
 			node = node->Children[keeper_id];
 			node_turn = NEXTTURN(node_turn);
 			node_game_length ++;
@@ -843,7 +843,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		}
 		else {
 			// check for continual PASS
-			if( !(node->move == 0 && node->parent != NULL && node->parent->move == 0) ) {
+			if( !(node->lastmove == 0 && node->parent != NULL && node->parent->lastmove == 0) ) {
 				// not continue PASS: add a Pass node
 				node->Children = (GameNode **)malloc(sizeof(GameNode *));
 				if(node->Children == NULL) { printf("? cannot allocate memory for children list\n"); break;/*return 0;*/ }
@@ -882,7 +882,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 					break;
 				}
 			}
-			// fprintf(dmsgStream, "[%d]%d: b%d w%d d%d; ",i,node->Children[i]->move, node->Children[i]->bWinN,node->Children[i]->wWinN,node->Children[i]->drawN);
+			// fprintf(dmsgStream, "[%d]%d: b%d w%d d%d; ",i,node->Children[i]->lastmove, node->Children[i]->bWinN,node->Children[i]->wWinN,node->Children[i]->drawN);
 		}
 		// fprintf(dmsgStream, " done.\n");
 	
@@ -948,7 +948,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		testNi = (root->Children[i]->bWinN + root->Children[i]->wWinN + root->Children[i]->drawN);
 		if(testNi > 0)
 			win_rate = (turn == BLACK ? root->Children[i]->bWinN : root->Children[i]->wWinN) / (double)testNi;
-		// fprintf(dmsgStream, "P%d=%.2f", root->Children[i]->move, win_rate);
+		// fprintf(dmsgStream, "P%d=%.2f", root->Children[i]->lastmove, win_rate);
 		// fprintf(dmsgStream, "=%d/%d ",(turn == BLACK ? root->Children[i]->bWinN : root->Children[i]->wWinN), testNi);
 
 		// for now, do not take the lose rate or score as 2nd comparator
@@ -961,7 +961,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
     int return_move = 0;
 	if(keeper_id >= 0)
 	{
-		return_move = root->Children[keeper_id]->move;
+		return_move = root->Children[keeper_id]->lastmove;
 		fprintf(dmsgStream, "N=%d P(win)=%.2f",(root->bWinN + root->wWinN + root->drawN), max_win_rate);
 		fprintf(dmsgStream, "=%d/%d\n",(turn == BLACK ? root->Children[keeper_id]->bWinN : root->Children[keeper_id]->wWinN),
 									(root->Children[keeper_id]->bWinN + root->Children[keeper_id]->wWinN + root->Children[keeper_id]->drawN));

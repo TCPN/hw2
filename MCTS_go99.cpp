@@ -53,6 +53,9 @@ int _simuPerNewNode = 10;
 #define BUFFTIME         0.005
 // a deadline of left time to stop computing
 double _exploration_factor = 1.414;
+double _inferior_ratio = 2.0;
+double _eq_sd = 0.5;
+
 FILE * dmsgStream = stderr;
 
 /*
@@ -672,7 +675,7 @@ typedef struct game_node {
 	
 	int bWinN, wWinN, drawN;
 	int childN;
-	struct game_node *Children;
+	struct game_node **Children;
 	struct game_node *parent;
 	// struct game_node *firstChild;
 	// struct game_node *nextSibling;
@@ -698,8 +701,20 @@ GameNode * alloc_new_game_node(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int move, 
 	init_game_node(ret, Board, move, parent);
 	return ret;
 }
-
-void delete_children(GameNode * node) {
+void free_node(GameNode * node) {
+	if(node != NULL){
+		if(node->Children != NULL){
+			for( int i = 0; i < node->childN; i ++)
+			{
+				free_node(node->Children[i]);
+			}
+			free(node->Children);
+		}
+		free(node);
+	}
+	return;
+}
+/*void delete_children(GameNode * node) {
 	if(node->Children != NULL)
 	{
 		for( int i = 0; i < node->childN; i ++)
@@ -707,7 +722,7 @@ void delete_children(GameNode * node) {
 		free(node->Children);
 	}
 	return;
-}
+}*/
 
 /* 
  * This function randomly generate one legal move (x, y) with return value x*10+y,
@@ -759,10 +774,11 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 			keeper_id = 0;
 			max_ucb_score = 0;
 			for(i = 0; i < node->childN; i ++) {
+				if(node->Children[i] == NULL) continue;
 				// TODO: if calculate the win rate when back propagation, and store it, the calculation times could be reduce
 				// !!! assert (node->Children[i].bWinN + node->Children[i].wWinN + node->Children[i].drawN) > 0
-				divByNi = 1 / (double)(node->Children[i].bWinN + node->Children[i].wWinN + node->Children[i].drawN);
-				ucb_score = ((node_turn == BLACK ? node->Children[i].bWinN : node->Children[i].wWinN) * divByNi)
+				divByNi = 1 / (double)(node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
+				ucb_score = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi)
 							+ _exploration_factor * sqrt(logTotalN * divByNi);
 				// for now, do not take the lose rate as 2nd comparator
 				if(ucb_score > max_ucb_score)
@@ -771,9 +787,11 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 					max_ucb_score = ucb_score;
 				}
 			}
-			// fprintf(dmsgStream, "-> %d:%s %d(%.2f) ", node_game_length+1, node_turn==BLACK?"b":"w" , node->Children[keeper_id].move, max_win_rate);
-			// fprintf(dmsgStream, "-> %d:%s %d(%.3f) ", node_game_length+1, node_turn==BLACK?"b":"w" , node->Children[keeper_id].move, max_ucb_score);
-			node = &(node->Children[keeper_id]);
+			if(node->Children[keeper_id] == NULL)
+				break;
+			// fprintf(dmsgStream, "-> %d:%s %d(%.2f) ", node_game_length+1, node_turn==BLACK?"b":"w" , node->Children[keeper_id]->move, max_win_rate);
+			// fprintf(dmsgStream, "-> %d:%s %d(%.3f) ", node_game_length+1, node_turn==BLACK?"b":"w" , node->Children[keeper_id]->move, max_ucb_score);
+			node = node->Children[keeper_id];
 			node_turn = NEXTTURN(node_turn);
 			node_game_length ++;
 			record(node->Board, GameRecord, node_game_length);
@@ -785,21 +803,25 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		// fprintf(dmsgStream, "Expansion: %d legal moves\n",num_legal_moves);
 		if(num_legal_moves > 0) {
 			// TODO: add PASS as a legal move
-			node->Children = (GameNode *)malloc(sizeof(GameNode) * num_legal_moves);
-			if(node->Children == NULL) { printf("? cannot allocate memory for children\n"); break;/*return 0;*/ }
+			node->Children = (GameNode **)malloc(sizeof(GameNode *) * num_legal_moves);
+			if(node->Children == NULL) { printf("? cannot allocate memory for children list\n"); break;/*return 0;*/ }
 			node->childN = num_legal_moves;
 			for(i = 0; i < num_legal_moves; i ++) {
-				init_game_node(node->Children + i, MovedBoard[i], MoveList[i], node);
+				node->Children[i] = alloc_new_game_node(MovedBoard[i], MoveList[i], node);
+				if(node->Children[i] == NULL) { printf("? cannot allocate memory for children\n"); node->childN = i; break;/*return 0;*/ }
+				// init_game_node(node->Children + i, MovedBoard[i], MoveList[i], node);
 			}
 		}
 		else {
 			// check for continual PASS
 			if( !(node->move == 0 && node->parent != NULL && node->parent->move == 0) ) {
 				// not continue PASS: add a Pass node
-				node->Children = (GameNode *)malloc(sizeof(GameNode));
-				if(node->Children == NULL) { printf("? cannot allocate memory for children\n"); break;/*return 0;*/ }
+				node->Children = (GameNode **)malloc(sizeof(GameNode *));
+				if(node->Children == NULL) { printf("? cannot allocate memory for children list\n"); break;/*return 0;*/ }
 				node->childN = 1;
-				init_game_node(node->Children, node->Board, 0/* pass */, node);
+				node->Children[0] = alloc_new_game_node(node->Board, 0, node);
+				if(node->Children[0] == NULL) { printf("? cannot allocate memory for children\n"); node->childN = 0; free(node->Children); node->Children = NULL; break;/*return 0;*/ }
+				// init_game_node(node->Children, node->Board, 0/* pass */, node);
 			}
 			if(node == root)
 				break;
@@ -810,7 +832,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		for(j = 0; !timeUp && j < _simuPerNewNode; j ++) {
 			for(i = 0; i < node->childN; i ++) {
 				//               vvvvvvvvvvvvvvvvvvvvvvv Dangerous???  how about USE MovedBoard ?
-				memcpy(SimBoard, node->Children[i].Board, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
+				memcpy(SimBoard, node->Children[i]->Board, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
 				record(SimBoard, GameRecord, node_game_length+1);		
 				simulate(SimBoard, NEXTTURN(node_turn), node_game_length+1, GameRecord);
 				simuCount ++ ;
@@ -818,11 +840,11 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 				// if(result > 100 || result < -100) fprintf(dmsgStream, "ERROR win by score=%f\n", result);
 				// score[i] += result;
 				if(result > 0)
-					node->Children[i].bWinN ++;
+					node->Children[i]->bWinN ++;
 				else if(result < 0)
-					node->Children[i].wWinN ++;
+					node->Children[i]->wWinN ++;
 				else
-					node->Children[i].drawN ++;
+					node->Children[i]->drawN ++;
 				//   Check Time Spent
 				now_t = clock();
 				if(end_t < now_t) // time is near up, buf time 0.1~0.05
@@ -831,7 +853,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 					break;
 				}
 			}
-			// fprintf(dmsgStream, "[%d]%d: b%d w%d d%d; ",i,node->Children[i].move, node->Children[i].bWinN,node->Children[i].wWinN,node->Children[i].drawN);
+			// fprintf(dmsgStream, "[%d]%d: b%d w%d d%d; ",i,node->Children[i]->move, node->Children[i]->bWinN,node->Children[i]->wWinN,node->Children[i]->drawN);
 		}
 		// fprintf(dmsgStream, " done.\n");
 	
@@ -839,9 +861,9 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		// fprintf(dmsgStream, "Back Propagation:");
 		newBWinN = newWWinN = newDrawN = 0;
 		for(i = 0; i < node->childN; i ++) {
-			newBWinN += node->Children[i].bWinN;
-			newWWinN += node->Children[i].wWinN;
-			newDrawN += node->Children[i].drawN;
+			newBWinN += node->Children[i]->bWinN;
+			newWWinN += node->Children[i]->wWinN;
+			newDrawN += node->Children[i]->drawN;
 		}
 		if(node->childN == 0) { // when node is a end node
 			// TODO: is this right : directly add some sample when a PV path leading to game end is selected?????
@@ -882,11 +904,11 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 	max_win_rate = -1;
 	int testNi;
 	for(i = 0; i < root->childN; i ++) {
-		testNi = (root->Children[i].bWinN + root->Children[i].wWinN + root->Children[i].drawN);
+		testNi = (root->Children[i]->bWinN + root->Children[i]->wWinN + root->Children[i]->drawN);
 		if(testNi > 0)
-			win_rate = (turn == BLACK ? root->Children[i].bWinN : root->Children[i].wWinN) / (double)testNi;
-		// fprintf(dmsgStream, "P%d=%.2f", root->Children[i].move, win_rate);
-		// fprintf(dmsgStream, "=%d/%d ",(turn == BLACK ? root->Children[i].bWinN : root->Children[i].wWinN), testNi);
+			win_rate = (turn == BLACK ? root->Children[i]->bWinN : root->Children[i]->wWinN) / (double)testNi;
+		// fprintf(dmsgStream, "P%d=%.2f", root->Children[i]->move, win_rate);
+		// fprintf(dmsgStream, "=%d/%d ",(turn == BLACK ? root->Children[i]->bWinN : root->Children[i]->wWinN), testNi);
 
 		// for now, do not take the lose rate or score as 2nd comparator
 		if(win_rate > max_win_rate)
@@ -898,18 +920,19 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
     int return_move = 0;
 	if(keeper_id >= 0)
 	{
-		return_move = root->Children[keeper_id].move;
+		return_move = root->Children[keeper_id]->move;
 		fprintf(dmsgStream, "N=%d P(win)=%.2f",(root->bWinN + root->wWinN + root->drawN), max_win_rate);
-		fprintf(dmsgStream, "=%d/%d\n",(turn == BLACK ? root->Children[keeper_id].bWinN : root->Children[keeper_id].wWinN),
-									(root->Children[keeper_id].bWinN + root->Children[keeper_id].wWinN + root->Children[keeper_id].drawN));
+		fprintf(dmsgStream, "=%d/%d\n",(turn == BLACK ? root->Children[keeper_id]->bWinN : root->Children[keeper_id]->wWinN),
+									(root->Children[keeper_id]->bWinN + root->Children[keeper_id]->wWinN + root->Children[keeper_id]->drawN));
 	}
 	fprintf(dmsgStream, ">>> move decision: %d\n", return_move);
 	
 	// TODO: Why should do_move & record be seperate in genmove & gtp_genmove ?????
     do_move(Board, turn, return_move);
 	fflush(dmsgStream);
-	delete_children(root);
-	free(root);
+	free_node(root);
+	// delete_children(root);
+	// free(root);
     return return_move % 100;
 }
 /* 

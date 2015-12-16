@@ -34,7 +34,7 @@
 #define SELF             1
 #define OPPONENT         2
 
-#define NUMGTPCOMMANDS      15
+#define NUMGTPCOMMANDS      16
 
 #define LOCALVERSION      1
 #define GTPVERSION        2
@@ -995,7 +995,8 @@ const char *KnownCommands[]={
     "undo",
     "quit",
     "showboard",
-    "final_score"
+    "final_score",
+	"showhistory"
 };
 
 void gtp_final_score(int Board[BOUNDARYSIZE][BOUNDARYSIZE]) {
@@ -1013,13 +1014,14 @@ void gtp_final_score(int Board[BOUNDARYSIZE][BOUNDARYSIZE]) {
 	cout << "0" << endl << endl<< endl;;
     }
 }
-void gtp_undo(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]) {
-    if (game_length!=0) {
-	for (int i = 1; i <= BOARDSIZE; ++i) {
-	    for (int j = 1; j <= BOARDSIZE; ++j) {
-		Board[i][j] = GameRecord[game_length][i][j];
-	    }
-	}
+void gtp_undo(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int *game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]) {
+    if (*game_length > 0) {
+		(*game_length) --;
+		for (int i = 1; i <= BOARDSIZE; ++i) {
+			for (int j = 1; j <= BOARDSIZE; ++j) {
+			Board[i][j] = GameRecord[*game_length][i][j];
+			}
+		}
     }
     cout << "= " << endl << endl;
 }
@@ -1132,7 +1134,8 @@ void gtp_main(int display) {
     char Parameter[COMMANDLENGTH]="";
     char Move[4]="";
     char Color[6]="";
-    int Board[BOUNDARYSIZE][BOUNDARYSIZE]={{0}};     reset(Board);
+    int Board[BOUNDARYSIZE][BOUNDARYSIZE]={{0}};
+	reset(Board);
     int NumCapture[3]={0};// 1:Black, 2: White
     int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]={{{0}}};
     int ivalue;
@@ -1200,9 +1203,15 @@ void gtp_main(int display) {
 	else if (strcmp(Command, "showboard")==0) {
 	    gtp_showboard(Board);
 	}
+	else if (strcmp(Command, "showhistory")==0) {
+		for(int i = 0; i <= game_length; i ++)
+		{
+			cout << "= " << i << " ";
+			gtp_showboard(GameRecord[i]);
+		}
+	}
 	else if (strcmp(Command, "undo")==0) {
-	    game_length--;
-	    gtp_undo(Board, game_length, GameRecord);
+	    gtp_undo(Board, &game_length, GameRecord);
 	    if (display==1) {
 		gtp_showboard(Board);
 	    }

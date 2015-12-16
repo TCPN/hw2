@@ -39,7 +39,7 @@
 #define LOCALVERSION      1
 #define GTPVERSION        2
 
- 
+#include "testUt.h"
 using namespace std;
 int _board_size = BOARDSIZE;
 int _board_boundary = BOUNDARYSIZE;
@@ -673,10 +673,14 @@ typedef struct game_node {
 	// 			:: store all records when this node is reached
 	// int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE];
 	
+	char pruned;
+	char turn;
+	
 	int bWinN, wWinN, drawN;
 	int childN;
 	struct game_node **Children;
 	struct game_node *parent;
+	double win_rate, divByNi;
 	// struct game_node *firstChild;
 	// struct game_node *nextSibling;
 } GameNode;
@@ -691,6 +695,9 @@ void init_game_node(GameNode * node, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int 
 	node->childN = 0;
 	node->Children = NULL;
 	node->parent = parent;
+	node->pruned = 0;
+	node->win_rate = 0;
+	node->divByNi = 1.0 / (double)0.0;
 	return;
 }
 
@@ -752,6 +759,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 	double win_rate, max_win_rate;
 	double ucb_score, max_ucb_score;
 	double logTotalN, divByNi;
+	int Ni;
 	int MoveList[HISTORYLENGTH];
 	int MovedBoard[HISTORYLENGTH][BOUNDARYSIZE][BOUNDARYSIZE];
 	int num_legal_moves;
@@ -763,7 +771,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 	while(!timeUp) {
 		
 	//   Selection
-		// fprintf(dmsgStream, "Selection:");
+		// fprintf(dmsgStream, "Selection: ");
 		// !!! assert (root->bWinN + root->wWinN + root->drawN) > 0
 		logTotalN = log(root->bWinN + root->wWinN + root->drawN);
 		node = root;
@@ -771,15 +779,36 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		node_game_length = game_length;
 		// fprintf(dmsgStream, " start from %d:root ", node_game_length);
 		while(node->childN > 0 && node->Children) { // go on while not leaf
+		
+			// progressive pruning
+			for(i = 0; i < node->childN; i ++) {
+				if(node->Children[i] == NULL) continue;
+				if(node->Children[i]->pruned) continue;
+				// Ni = (node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
+				// node->Children[i]->divByNi = 1 / (double)Ni;
+				// node->Children[i]->win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);
+
+
+			}
+			
 			keeper_id = 0;
 			max_ucb_score = 0;
 			for(i = 0; i < node->childN; i ++) {
-				if(node->Children[i] == NULL) continue;
+				if(node->Children[i] == NULL){ PV(i) P(NO_INST) continue;}
+				if(node->Children[i]->pruned){ PV(i) P(PRUNED) continue;}
 				// TODO: if calculate the win rate when back propagation, and store it, the calculation times could be reduce
 				// !!! assert (node->Children[i].bWinN + node->Children[i].wWinN + node->Children[i].drawN) > 0
-				divByNi = 1 / (double)(node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
-				ucb_score = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi)
-							+ _exploration_factor * sqrt(logTotalN * divByNi);
+				// Ni = (node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
+				// divByNi = 1 / (double)Ni;
+				// win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);ucb_score = node->Children[i]->win_rate + _exploration_factor * sqrt(logTotalN * node->Children[i]->divByNi);
+				
+				// divByNi = 1 / (double)(node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
+				// ucb_score = (node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi
+							// + _exploration_factor * sqrt(logTotalN * divByNi);
+				// fprintf(dmsgStream, "orig %.3f (div %f win %.3f)  ", ucb_score, divByNi, (node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);
+				
+				ucb_score = node->Children[i]->win_rate + _exploration_factor * sqrt(logTotalN * node->Children[i]->divByNi);
+				// fprintf(dmsgStream, "stored %.3f  (div %f win %.3f) \n", ucb_score, node->Children[i]->divByNi, node->Children[i]->win_rate);
 				// for now, do not take the lose rate as 2nd comparator
 				if(ucb_score > max_ucb_score)
 				{
@@ -864,6 +893,9 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 			newBWinN += node->Children[i]->bWinN;
 			newWWinN += node->Children[i]->wWinN;
 			newDrawN += node->Children[i]->drawN;
+			// update the divByNi and win_rate of children as well
+			node->Children[i]->divByNi = 1 / (double)(node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
+			node->Children[i]->win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * node->Children[i]->divByNi);
 		}
 		if(node->childN == 0) { // when node is a end node
 			// TODO: is this right : directly add some sample when a PV path leading to game end is selected?????
@@ -881,9 +913,17 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 			node->bWinN += newBWinN;
 			node->wWinN += newWWinN;
 			node->drawN += newDrawN;
+			// sub TODO: STORE THESE?
+			// update the divByNi and win_rate of node as well
+			node->divByNi = 1 / (double)(node->bWinN + node->wWinN + node->drawN);
+			//                vvvvvvvvvvvvvvvvvvv too hard to understand, the win rate is used when parent checks which child is the best
+			node->win_rate = ((NEXTTURN(node_turn) == BLACK ? node->bWinN : node->wWinN) * node->divByNi);
 			// fprintf(dmsgStream, " %d %d %d", node->bWinN, node->wWinN, node->drawN);
 			if(node->parent)
+			{
 				node = node->parent;
+				node_turn = NEXTTURN(node_turn);
+			}
 			else
 				break;
 		}
@@ -904,6 +944,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 	max_win_rate = -1;
 	int testNi;
 	for(i = 0; i < root->childN; i ++) {
+		// TODO: use divByNi ? (careful of the infinity)
 		testNi = (root->Children[i]->bWinN + root->Children[i]->wWinN + root->Children[i]->drawN);
 		if(testNi > 0)
 			win_rate = (turn == BLACK ? root->Children[i]->bWinN : root->Children[i]->wWinN) / (double)testNi;

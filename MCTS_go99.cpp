@@ -48,14 +48,14 @@ const int DirectionX[MAXDIRECTION] = {-1, 0, 1, 0};
 const int DirectionY[MAXDIRECTION] = { 0, 1, 0,-1};
 const char LabelX[]="0ABCDEFGHJ";
 
-int _simuPerNewNode = 10;
-// currently, every expanded node get 10 simulations before back propagation
+int _simuPerNewNode = 5;
+// currently, every expanded node get 5 simulations before back propagation
 #define BUFFTIME         0.005
 // a deadline of left time to stop computing
 double _exploration_factor = 1.414;
 double _inferior_ratio = 2.0;
 double _eq_sd = 0.5;
-
+int _progressive_pruning_thresh = 100;
 FILE * dmsgStream = stderr;
 
 /*
@@ -768,6 +768,9 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 	int i, j, timeUp = 0;
 	int newBWinN, newWWinN, newDrawN;
 	int simuCount = 0, roundCount = 0;
+	char prunable[HISTORYLENGTH];
+#define TOTAL_N(n) (((n)->bWinN) + ((n)->wWinN) + ((n)->drawN))
+#define WIN_N(t,n) ((((t) == BLACK) ? ((n)->bWinN) : ((n)->wWinN))
 	while(!timeUp) {
 		
 	//   Selection
@@ -779,18 +782,6 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		node_game_length = game_length;
 		// fprintf(dmsgStream, " start from %d:root ", node_game_length);
 		while(node->childN > 0 && node->Children) { // go on while not leaf
-		
-			// progressive pruning
-			for(i = 0; i < node->childN; i ++) {
-				if(node->Children[i] == NULL) continue;
-				if(node->Children[i]->pruned) continue;
-				// Ni = (node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
-				// node->Children[i]->divByNi = 1 / (double)Ni;
-				// node->Children[i]->lastmove_win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);
-
-
-			}
-			
 			keeper_id = 0;
 			max_ucb_score = 0;
 			for(i = 0; i < node->childN; i ++) {
@@ -923,6 +914,21 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 			{
 				node = node->parent;
 				node_turn = NEXTTURN(node_turn);
+				
+				// progressive pruning
+				for(i = 0; i < node->childN; i ++) {
+					if(node->Children[i] == NULL) continue;
+					if(node->Children[i]->pruned) continue;
+					
+					if(TOTAL_N(node->Children[i]) >= _progressive_pruning_thresh)
+					{
+					}
+					// Ni = (node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
+					// node->Children[i]->divByNi = 1 / (double)Ni;
+					// node->Children[i]->lastmove_win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);
+
+
+				}
 			}
 			else
 				break;

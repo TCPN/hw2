@@ -680,7 +680,7 @@ typedef struct game_node {
 	int childN;
 	struct game_node **Children;
 	struct game_node *parent;
-	double win_rate, divByNi;
+	double lastmove_win_rate, divByNi;
 	// struct game_node *firstChild;
 	// struct game_node *nextSibling;
 } GameNode;
@@ -696,7 +696,7 @@ void init_game_node(GameNode * node, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int 
 	node->Children = NULL;
 	node->parent = parent;
 	node->pruned = 0;
-	node->win_rate = 0;
+	node->lastmove_win_rate = 0;
 	node->divByNi = 1.0 / (double)0.0;
 	return;
 }
@@ -786,7 +786,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 				if(node->Children[i]->pruned) continue;
 				// Ni = (node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
 				// node->Children[i]->divByNi = 1 / (double)Ni;
-				// node->Children[i]->win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);
+				// node->Children[i]->lastmove_win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);
 
 
 			}
@@ -800,15 +800,15 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 				// !!! assert (node->Children[i].bWinN + node->Children[i].wWinN + node->Children[i].drawN) > 0
 				// Ni = (node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
 				// divByNi = 1 / (double)Ni;
-				// win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);ucb_score = node->Children[i]->win_rate + _exploration_factor * sqrt(logTotalN * node->Children[i]->divByNi);
+				// win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);ucb_score = node->Children[i]->lastmove_win_rate + _exploration_factor * sqrt(logTotalN * node->Children[i]->divByNi);
 				
 				// divByNi = 1 / (double)(node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
 				// ucb_score = (node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi
 							// + _exploration_factor * sqrt(logTotalN * divByNi);
 				// fprintf(dmsgStream, "orig %.3f (div %f win %.3f)  ", ucb_score, divByNi, (node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);
 				
-				ucb_score = node->Children[i]->win_rate + _exploration_factor * sqrt(logTotalN * node->Children[i]->divByNi);
-				// fprintf(dmsgStream, "stored %.3f  (div %f win %.3f) \n", ucb_score, node->Children[i]->divByNi, node->Children[i]->win_rate);
+				ucb_score = node->Children[i]->lastmove_win_rate + _exploration_factor * sqrt(logTotalN * node->Children[i]->divByNi);
+				// fprintf(dmsgStream, "stored %.3f  (div %f win %.3f) \n", ucb_score, node->Children[i]->divByNi, node->Children[i]->lastmove_win_rate);
 				// for now, do not take the lose rate as 2nd comparator
 				if(ucb_score > max_ucb_score)
 				{
@@ -893,9 +893,9 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 			newBWinN += node->Children[i]->bWinN;
 			newWWinN += node->Children[i]->wWinN;
 			newDrawN += node->Children[i]->drawN;
-			// update the divByNi and win_rate of children as well
+			// update the divByNi and lastmove_win_rate of children as well
 			node->Children[i]->divByNi = 1 / (double)(node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
-			node->Children[i]->win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * node->Children[i]->divByNi);
+			node->Children[i]->lastmove_win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * node->Children[i]->divByNi);
 		}
 		if(node->childN == 0) { // when node is a end node
 			// TODO: is this right : directly add some sample when a PV path leading to game end is selected?????
@@ -914,10 +914,10 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 			node->wWinN += newWWinN;
 			node->drawN += newDrawN;
 			// sub TODO: STORE THESE?
-			// update the divByNi and win_rate of node as well
+			// update the divByNi and lastmove_win_rate of node as well
 			node->divByNi = 1 / (double)(node->bWinN + node->wWinN + node->drawN);
 			//                vvvvvvvvvvvvvvvvvvv too hard to understand, the win rate is used when parent checks which child is the best
-			node->win_rate = ((NEXTTURN(node_turn) == BLACK ? node->bWinN : node->wWinN) * node->divByNi);
+			node->lastmove_win_rate = ((NEXTTURN(node_turn) == BLACK ? node->bWinN : node->wWinN) * node->divByNi);
 			// fprintf(dmsgStream, " %d %d %d", node->bWinN, node->wWinN, node->drawN);
 			if(node->parent)
 			{

@@ -52,12 +52,14 @@ int _simuPerNewNode = 5;
 // currently, every expanded node get 5 simulations before back propagation
 #define BUFFTIME         0.005
 // a deadline of left time to stop computing
-double _exploration_factor = 1.414;
-double _inferior_ratio = 2.0;
-double _eq_sd = 0.5;
-int _progressive_pruning_thresh = 100;
+double _explor_factor = 1.414;
+double _infr_ratio = 2;
+double _eq_sd = 0.5;// is this too big?
+int _prune_iter_limit = 100; // is this too big?
+int _progr_prune_thresh = 100;
 FILE * dmsgStream = stderr;
 
+// TODO: use char[][] to save a Board
 /*
  * This function reset the board, the board intersections are labeled with 0,
  * the boundary intersections are labeled with 3.
@@ -102,7 +104,6 @@ int find_liberty(int X, int Y, int label, int Board[BOUNDARYSIZE][BOUNDARYSIZE],
     }
     return total_liberty;
 }
-
 /*
  * This function count the liberties of the given intersection's neighboorhod
  * */
@@ -125,7 +126,6 @@ void count_liberty(int X, int Y, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int Libe
 	}
     }
 }
-
 /*
  * This function count the number of empty, self, opponent, and boundary intersections of the neighboorhod
  * and saves the type in NeighboorhoodState.
@@ -161,7 +161,6 @@ void count_neighboorhood_state(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int
 	}
     }
 }
-
 /*
  * This function remove the connect component contains (X, Y) with color "turn" 
  * And return the number of remove stones.
@@ -267,7 +266,6 @@ int update_board_check(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int 
 
     return (legal_flag==1)?1:0;
 }
-
 int check_legal(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int x, int y, int turn, int game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]){
 
     int NextBoard[BOUNDARYSIZE][BOUNDARYSIZE];
@@ -381,7 +379,6 @@ int check_legal(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int x, int y, int turn, i
 	}
 	return 0;
 }
-
 // TODO: FIND A MORE EFFICIENT WAY TO GENERATE ALL LEGAL MOVE
 /*
  * This function return the number of legal moves with clor "turn" and
@@ -589,7 +586,6 @@ void record(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int GameRecord[MAXGAMELENGTH]
 		    // }
 		// }
 }
-
 /*
  * This function counts the number of points remains in the board by Black's view
  * */
@@ -658,7 +654,6 @@ int simulate(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_length, i
 	else*/
 		return 0;
 }
-
 typedef struct game_node {
 	int Board[BOUNDARYSIZE][BOUNDARYSIZE];
 	int lastmove; // not used at root
@@ -673,18 +668,21 @@ typedef struct game_node {
 	// 			:: store all records when this node is reached
 	// int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE];
 	
+	char need_pruning;
+	char unpruned_child_N;
+	short prune_iter;
 	char pruned;
 	char turn;
 	
+	char childN;
 	int bWinN, wWinN, drawN;
-	int childN;
 	struct game_node **Children;
 	struct game_node *parent;
-	double lastmove_win_rate, divByNi;
+	double move_winP, divByNi;
+	double std;
 	// struct game_node *firstChild;
 	// struct game_node *nextSibling;
 } GameNode;
-
 void init_game_node(GameNode * node, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int move, GameNode * parent) {
 	if(Board)
 		memcpy(node->Board, Board, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
@@ -696,11 +694,14 @@ void init_game_node(GameNode * node, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int 
 	node->Children = NULL;
 	node->parent = parent;
 	node->pruned = 0;
-	node->lastmove_win_rate = 0;
+	node->move_winP = 0;
 	node->divByNi = 1.0 / (double)0.0;
+	node->need_pruning = 0;
+	node->unpruned_child_N = 0;
+	node->prune_iter = 0;
+	node->std = 0;
 	return;
 }
-
 GameNode * alloc_new_game_node(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int move, GameNode * parent) {
 	GameNode * ret = (GameNode *)malloc(sizeof(GameNode));
 	if(ret == NULL)
@@ -730,7 +731,6 @@ void free_node(GameNode * node) {
 	}
 	return;
 }*/
-
 /* 
  * This function randomly generate one legal move (x, y) with return value x*10+y,
  * if there is no legal move the function will return 0.
@@ -791,15 +791,15 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 				// !!! assert (node->Children[i].bWinN + node->Children[i].wWinN + node->Children[i].drawN) > 0
 				// Ni = (node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
 				// divByNi = 1 / (double)Ni;
-				// win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);ucb_score = node->Children[i]->lastmove_win_rate + _exploration_factor * sqrt(logTotalN * node->Children[i]->divByNi);
+				// win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);ucb_score = node->Children[i]->move_winP + _explor_factor * sqrt(logTotalN * node->Children[i]->divByNi);
 				
 				// divByNi = 1 / (double)(node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
 				// ucb_score = (node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi
-							// + _exploration_factor * sqrt(logTotalN * divByNi);
+							// + _explor_factor * sqrt(logTotalN * divByNi);
 				// fprintf(dmsgStream, "orig %.3f (div %f win %.3f)  ", ucb_score, divByNi, (node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);
 				
-				ucb_score = node->Children[i]->lastmove_win_rate + _exploration_factor * sqrt(logTotalN * node->Children[i]->divByNi);
-				// fprintf(dmsgStream, "stored %.3f  (div %f win %.3f) \n", ucb_score, node->Children[i]->divByNi, node->Children[i]->lastmove_win_rate);
+				ucb_score = node->Children[i]->move_winP + _explor_factor * sqrt(logTotalN * node->Children[i]->divByNi);
+				// fprintf(dmsgStream, "stored %.3f  (div %f win %.3f) \n", ucb_score, node->Children[i]->divByNi, node->Children[i]->move_winP);
 				// for now, do not take the lose rate as 2nd comparator
 				if(ucb_score > max_ucb_score)
 				{
@@ -825,10 +825,15 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 			// TODO: add PASS as a legal move
 			node->Children = (GameNode **)malloc(sizeof(GameNode *) * num_legal_moves);
 			if(node->Children == NULL) { printf("? cannot allocate memory for children list\n"); break;/*return 0;*/ }
-			node->childN = num_legal_moves;
+			node->unpruned_child_N = node->childN = num_legal_moves;
+			node->need_pruning = 1;
 			for(i = 0; i < num_legal_moves; i ++) {
 				node->Children[i] = alloc_new_game_node(MovedBoard[i], MoveList[i], node);
-				if(node->Children[i] == NULL) { printf("? cannot allocate memory for children\n"); node->childN = i; break;/*return 0;*/ }
+				if(node->Children[i] == NULL) {
+					printf("? cannot allocate memory for children\n");
+					node->childN = i;
+					break;/*return 0;*/
+				}
 				// init_game_node(node->Children + i, MovedBoard[i], MoveList[i], node);
 			}
 		}
@@ -848,6 +853,8 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		}
 		
 	//   Simulation
+		// TODO: dynamic decide how many simulations are given to this parent node totally
+		// TODO: dynamic change how many simulations for a new child node ?
 		// fprintf(dmsgStream, "Simulation:");
 		for(j = 0; !timeUp && j < _simuPerNewNode; j ++) {
 			for(i = 0; i < node->childN; i ++) {
@@ -884,9 +891,10 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 			newBWinN += node->Children[i]->bWinN;
 			newWWinN += node->Children[i]->wWinN;
 			newDrawN += node->Children[i]->drawN;
-			// update the divByNi and lastmove_win_rate of children as well
+			// update the divByNi and move_winP of children as well
 			node->Children[i]->divByNi = 1 / (double)(node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
-			node->Children[i]->lastmove_win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * node->Children[i]->divByNi);
+			node->Children[i]->move_winP = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * node->Children[i]->divByNi);
+			node->Children[i]->std = sqrt(node->Children[i]->move_winP * (1 - node->Children[i]->move_winP) * node->Children[i]->divByNi);
 		}
 		if(node->childN == 0) { // when node is a end node
 			// TODO: is this right : directly add some sample when a PV path leading to game end is selected?????
@@ -905,10 +913,11 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 			node->wWinN += newWWinN;
 			node->drawN += newDrawN;
 			// sub TODO: STORE THESE?
-			// update the divByNi and lastmove_win_rate of node as well
+			// update the divByNi and move_winP of node as well
 			node->divByNi = 1 / (double)(node->bWinN + node->wWinN + node->drawN);
 			//                vvvvvvvvvvvvvvvvvvv too hard to understand, the win rate is used when parent checks which child is the best
-			node->lastmove_win_rate = ((NEXTTURN(node_turn) == BLACK ? node->bWinN : node->wWinN) * node->divByNi);
+			node->move_winP = ((NEXTTURN(node_turn) == BLACK ? node->bWinN : node->wWinN) * node->divByNi);
+			node->std = sqrt(node->move_winP * (1 - node->move_winP) * node->divByNi);
 			// fprintf(dmsgStream, " %d %d %d", node->bWinN, node->wWinN, node->drawN);
 			if(node->parent)
 			{
@@ -916,18 +925,65 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 				node_turn = NEXTTURN(node_turn);
 				
 				// progressive pruning
-				for(i = 0; i < node->childN; i ++) {
-					if(node->Children[i] == NULL) continue;
-					if(node->Children[i]->pruned) continue;
-					
-					if(TOTAL_N(node->Children[i]) >= _progressive_pruning_thresh)
-					{
+				if(node->need_pruning)
+				{
+					double max_ml = -100, ml, mr, std;
+					for(i = 0; i < node->childN; i ++) {
+						if(node->Children[i] != NULL
+							&& !(node->Children[i]->pruned)
+							&& TOTAL_N(node->Children[i]) >= _progr_prune_thresh)
+						{
+							prunable[i] = 1;
+							// QUESTION: if the mean is win_rate, what's the sense to compare two value via mean+r*std? directly compare two value is more easy and not so bad
+							// std = sqrt(node->Children[i]->move_winP * (1 - node->Children[i]->move_winP) * node->divByNi);
+							ml = node->Children[i]->move_winP - _infr_ratio * node->Children[i]->std;
+							if(ml > max_ml)
+							{
+								max_ml = ml;
+							}
+						}
+						else
+							prunable[i] = 0;
+						// Ni = (node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
+						// node->Children[i]->divByNi = 1 / (double)Ni;
+						// node->Children[i]->move_winP = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);
 					}
-					// Ni = (node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
-					// node->Children[i]->divByNi = 1 / (double)Ni;
-					// node->Children[i]->lastmove_win_rate = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);
-
-
+					int all_eq = 1;
+					for(i = 0; i < node->childN; i ++) {
+						if(prunable[i])
+						{
+							// std = sqrt(node->Children[i]->move_winP * (1 - node->Children[i]->move_winP));
+							mr = node->Children[i]->move_winP + _infr_ratio * node->Children[i]->std;
+							if(mr < max_ml)
+							{
+								node->Children[i]->pruned = 1;
+								node->unpruned_child_N --;
+								all_eq = 0;
+							}
+							else if(std >= _eq_sd)
+							{
+								all_eq = 0;
+							}
+						}
+						else
+							prunable[i] = 0;
+					}
+					node->prune_iter ++;
+					if(all_eq)
+					{
+						fprintf(dmsgStream, "Stop Pruning: ALL STATISTICALLY EQUAL\n");
+						node->need_pruning = 0;
+					}
+					else if(node->prune_iter >= _prune_iter_limit)
+					{
+						fprintf(dmsgStream, "Stop Pruning: PRUNING ITERATION LIMIT REACHED\n");
+						node->need_pruning = 0;
+					}
+					else if(node->unpruned_child_N <= 1)
+					{
+						fprintf(dmsgStream, "Stop Pruning: ONE CHILD LEFT\n");
+						node->need_pruning = 0;
+					}
 				}
 			}
 			else
@@ -1266,7 +1322,7 @@ int main(int argc, char* argv[]) {
 			}
 			int explr = atof(argv[argi]);
 			if(explr > 0)
-				_exploration_factor = explr;
+				_explor_factor = explr;
 			else
 				fprintf(dmsgStream, "a invalid value \"%s\" following -explr\n", argv[argi]);
 		}
@@ -1292,7 +1348,7 @@ int main(int argc, char* argv[]) {
 		}
 	}
 	fprintf(dmsgStream, "do %d simulations for each new node. \n", _simuPerNewNode);
-	fprintf(dmsgStream, "exploration factor = %f. \n", _exploration_factor);
+	fprintf(dmsgStream, "exploration factor = %f. \n", _explor_factor);
 	// important fix
 	srand(time(NULL));
     gtp_main(display);

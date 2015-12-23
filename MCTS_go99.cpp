@@ -786,7 +786,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 			max_ucb_score = 0;
 			for(i = 0; i < node->childN; i ++) {
 				if(node->Children[i] == NULL){ PV(i) P(NO_INST) continue;}
-				if(node->Children[i]->pruned){ PV(i) P(PRUNED) continue;}
+				if(node->Children[i]->pruned){ /*PV(i) P(PRUNED)*/ continue;}
 				// TODO: if calculate the win rate when back propagation, and store it, the calculation times could be reduce
 				// !!! assert (node->Children[i].bWinN + node->Children[i].wWinN + node->Children[i].drawN) > 0
 				// Ni = (node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
@@ -928,10 +928,16 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 				if(node->need_pruning)
 				{
 					double max_ml = -100, ml, mr, std;
+					int all_eq = 1;
 					for(i = 0; i < node->childN; i ++) {
-						if(node->Children[i] != NULL
-							&& !(node->Children[i]->pruned)
-							&& TOTAL_N(node->Children[i]) >= _progr_prune_thresh)
+						prunable[i] = 0;
+						if(node->Children[i] == NULL)
+							continue;
+						if(TOTAL_N(node->Children[i]) < _progr_prune_thresh){
+							all_eq = 0; // can not judge yet
+							continue;
+						}
+						if(!(node->Children[i]->pruned))
 						{
 							prunable[i] = 1;
 							// QUESTION: if the mean is win_rate, what's the sense to compare two value via mean+r*std? directly compare two value is more easy and not so bad
@@ -942,13 +948,10 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 								max_ml = ml;
 							}
 						}
-						else
-							prunable[i] = 0;
 						// Ni = (node->Children[i]->bWinN + node->Children[i]->wWinN + node->Children[i]->drawN);
 						// node->Children[i]->divByNi = 1 / (double)Ni;
 						// node->Children[i]->move_winP = ((node_turn == BLACK ? node->Children[i]->bWinN : node->Children[i]->wWinN) * divByNi);
 					}
-					int all_eq = 1;
 					for(i = 0; i < node->childN; i ++) {
 						if(prunable[i])
 						{
@@ -965,8 +968,6 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 								all_eq = 0;
 							}
 						}
-						else
-							prunable[i] = 0;
 					}
 					node->prune_iter ++;
 					if(all_eq)

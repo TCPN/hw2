@@ -1309,9 +1309,9 @@ int main(int argc, char* argv[]) {
 				fprintf(dmsgStream, "parameter for -nodesim is not given. \n");
 				break;
 			}
-			int simu = atoi(argv[argi]);
-			if(simu > 0)
-				_simuPerNewNode = simu;
+			int v = atoi(argv[argi]);
+			if(v > 0)
+				_simuPerNewNode = v;
 			else
 				fprintf(dmsgStream, "a invalid value \"%s\" following -nodesim\n", argv[argi]);
 		}
@@ -1321,11 +1321,59 @@ int main(int argc, char* argv[]) {
 				fprintf(dmsgStream, "parameter for -explr is not given. \n");
 				break;
 			}
-			int explr = atof(argv[argi]);
-			if(explr > 0)
-				_explor_factor = explr;
+			double v = atof(argv[argi]);
+			if(v > 0)
+				_explor_factor = v;
 			else
 				fprintf(dmsgStream, "a invalid value \"%s\" following -explr\n", argv[argi]);
+		}
+		else if (strcmp(argv[argi], "-infR")==0) {
+			argi ++;
+			if(argi >= argc){
+				fprintf(dmsgStream, "parameter for -infR is not given. \n");
+				break;
+			}
+			double v = atof(argv[argi]);
+			if(v > 0)
+				_infr_ratio = v;
+			else
+				fprintf(dmsgStream, "a invalid value \"%s\" following -infR\n", argv[argi]);
+		}
+		else if (strcmp(argv[argi], "-eqsd")==0) {
+			argi ++;
+			if(argi >= argc){
+				fprintf(dmsgStream, "parameter for -eqsd is not given. \n");
+				break;
+			}
+			double v = atof(argv[argi]);
+			if(v > 0)
+				_eq_sd = v;
+			else
+				fprintf(dmsgStream, "a invalid value \"%s\" following -eqsd\n", argv[argi]);
+		}
+		else if (strcmp(argv[argi], "-ppItLim")==0) {
+			argi ++;
+			if(argi >= argc){
+				fprintf(dmsgStream, "parameter for -ppItLim is not given. \n");
+				break;
+			}
+			int v = atoi(argv[argi]);
+			if(v > 0)
+				_prune_iter_limit = v;
+			else
+				fprintf(dmsgStream, "a invalid value \"%s\" following -ppItLim\n", argv[argi]);
+		}
+		else if (strcmp(argv[argi], "-ppthres")==0) {
+			argi ++;
+			if(argi >= argc){
+				fprintf(dmsgStream, "parameter for -ppthres is not given. \n");
+				break;
+			}
+			int v = atoi(argv[argi]);
+			if(v > 0)
+				_progr_prune_thresh = v;
+			else
+				fprintf(dmsgStream, "a invalid value \"%s\" following -ppthres\n", argv[argi]);
 		}
 		else if (strcmp(argv[argi], "-dmsgfile")==0) {
 			argi ++;

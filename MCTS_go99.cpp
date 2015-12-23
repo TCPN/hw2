@@ -47,6 +47,7 @@ double _komi =  DEFAULTKOMI;
 const int DirectionX[MAXDIRECTION] = {-1, 0, 1, 0};
 const int DirectionY[MAXDIRECTION] = { 0, 1, 0,-1};
 const char LabelX[]="0ABCDEFGHJ";
+typedef int BOARD[BOUNDARYSIZE][BOUNDARYSIZE]; // do not change to char[][]
 
 int _simuPerNewNode = 5;
 // currently, every expanded node get 5 simulations before back propagation
@@ -64,7 +65,7 @@ FILE * dmsgStream = stderr;
  * This function reset the board, the board intersections are labeled with 0,
  * the boundary intersections are labeled with 3.
  * */
-void reset(int Board[BOUNDARYSIZE][BOUNDARYSIZE]) {
+void reset(BOARD Board) {
     for (int i = 1 ; i <= BOARDSIZE; ++i) {
 	for (int j = 1 ; j <= BOARDSIZE; ++j) {
 	    Board[i][j] = EMPTY;
@@ -80,7 +81,7 @@ void reset(int Board[BOUNDARYSIZE][BOUNDARYSIZE]) {
  * This function return the total number of liberity of the string of (X, Y) and
  * the string will be label with 'label'.
  * */
-int find_liberty(int X, int Y, int label, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int ConnectBoard[BOUNDARYSIZE][BOUNDARYSIZE], int foundLiberty) {
+int find_liberty(int X, int Y, int label, BOARD Board, BOARD ConnectBoard, int foundLiberty) {
     // Label the current intersection
 	// modified!!!!
     //ConnectBoard[X][Y] |= label;
@@ -107,10 +108,10 @@ int find_liberty(int X, int Y, int label, int Board[BOUNDARYSIZE][BOUNDARYSIZE],
 /*
  * This function count the liberties of the given intersection's neighboorhod
  * */
-void count_liberty(int X, int Y, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int Liberties[MAXDIRECTION]) {
-    int ConnectBoard[BOUNDARYSIZE][BOUNDARYSIZE];
+void count_liberty(int X, int Y, BOARD Board, int Liberties[MAXDIRECTION]) {
+    BOARD ConnectBoard;
     // Initial the ConnectBoard
-	memset(ConnectBoard, 0, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
+	memset(ConnectBoard, 0, sizeof(BOARD));
     // for (int i = 0 ; i < BOUNDARYSIZE; ++i) {
 	// for (int j = 0 ; j < BOUNDARYSIZE; ++j) {
 	    // ConnectBoard[i][j] = 0;
@@ -130,7 +131,7 @@ void count_liberty(int X, int Y, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int Libe
  * This function count the number of empty, self, opponent, and boundary intersections of the neighboorhod
  * and saves the type in NeighboorhoodState.
  * */
-void count_neighboorhood_state(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int turn, int* empt, int* self, int* oppo ,int* boun, int NeighboorhoodState[MAXDIRECTION]) {
+void count_neighboorhood_state(BOARD Board, int X, int Y, int turn, int* empt, int* self, int* oppo ,int* boun, int NeighboorhoodState[MAXDIRECTION]) {
     for (int d = 0 ; d < MAXDIRECTION; ++d) {
 	// check the number of nonempty neighbor
 	switch(Board[X+DirectionX[d]][Y+DirectionY[d]]) {
@@ -165,7 +166,7 @@ void count_neighboorhood_state(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int
  * This function remove the connect component contains (X, Y) with color "turn" 
  * And return the number of remove stones.
  * */
-int remove_piece(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int turn) {
+int remove_piece(BOARD Board, int X, int Y, int turn) {
     int remove_stones = (Board[X][Y]==EMPTY)?0:1;
     Board[X][Y] = EMPTY;
     for (int d = 0; d < MAXDIRECTION; ++d) {
@@ -180,7 +181,7 @@ int remove_piece(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int turn) 
  * This function update Board with place turn's piece at (X,Y).
  * Note that this function will not check if (X, Y) is a legal move or not.
  * */
-void update_board(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int turn, int KnownLiberties[4]) {
+void update_board(BOARD Board, int X, int Y, int turn, int KnownLiberties[4]) {
     int num_neighborhood_self = 0;
     int num_neighborhood_oppo = 0;
     int num_neighborhood_empt = 0;
@@ -212,7 +213,7 @@ void update_board(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int turn,
  * This function update Board with place turn's piece at (X,Y).
  * Note that this function will check if (X, Y) is a legal move or not.
  * */
-int update_board_check(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int turn) {
+int update_board_check(BOARD Board, int X, int Y, int turn) {
     // Check the given coordination is legal or not
     if ( X < 1 || X > BOARDSIZE || Y < 1 || Y > BOARDSIZE || Board[X][Y]!=EMPTY)
 	return 0;
@@ -266,9 +267,9 @@ int update_board_check(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int X, int Y, int 
 
     return (legal_flag==1)?1:0;
 }
-int check_legal(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int x, int y, int turn, int game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]){
+int check_legal(BOARD Board, int x, int y, int turn, int game_length, BOARD GameRecord[MAXGAMELENGTH]){
 
-    int NextBoard[BOUNDARYSIZE][BOUNDARYSIZE];
+    BOARD NextBoard;
     int num_neighborhood_self;
     int num_neighborhood_oppo;
     int num_neighborhood_empt;
@@ -344,7 +345,7 @@ int check_legal(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int x, int y, int turn, i
 					// NextBoard[i][j] = Board[i][j];
 				// }
 			// }
-			memcpy(NextBoard, Board, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
+			memcpy(NextBoard, Board, sizeof(BOARD));
 			// do the move
 			// The move is a capture move and the board needs to be updated.
 			if (eat_move == 1) {
@@ -384,8 +385,8 @@ int check_legal(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int x, int y, int turn, i
  * This function return the number of legal moves with clor "turn" and
  * saves all legal moves in MoveList
  * */
-int gen_legal_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE], int MoveList[HISTORYLENGTH], int MovedBoard[HISTORYLENGTH][BOUNDARYSIZE][BOUNDARYSIZE]) {
-    int NextBoard[BOUNDARYSIZE][BOUNDARYSIZE];
+int gen_legal_move(BOARD Board, int turn, int game_length, BOARD GameRecord[MAXGAMELENGTH], int MoveList[HISTORYLENGTH], BOARD MovedBoard[HISTORYLENGTH]) {
+    BOARD NextBoard;
     int num_neighborhood_self;
     int num_neighborhood_oppo;
     int num_neighborhood_empt;
@@ -467,9 +468,9 @@ int gen_legal_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_len
 			if (need_check_history) {
 			// copy the current board to next board
 				if(MovedBoard)
-					memcpy(MovedBoard[legal_moves], Board, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
+					memcpy(MovedBoard[legal_moves], Board, sizeof(BOARD));
 				else
-					memcpy(NextBoard, Board, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
+					memcpy(NextBoard, Board, sizeof(BOARD));
 				// for (int i = 0 ; i < BOUNDARYSIZE; ++i) {
 				// for (int j = 0 ; j < BOUNDARYSIZE; ++j) {
 					// NextBoard[i][j] = Board[i][j];
@@ -525,7 +526,7 @@ int gen_legal_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_len
 }
 // DONE TODO: MAKE RANDOM MOVE MORE EFFICIENT
 // :: Random pick a move and check whether it is legal.
-int rand_gen_legal_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]) {
+int rand_gen_legal_move(BOARD Board, int turn, int game_length, BOARD GameRecord[MAXGAMELENGTH]) {
     unsigned char MoveList[BOARDSIZE * BOARDSIZE];
 	int moveN = 0;
 	for(int i = 1; i <= BOARDSIZE; i ++){
@@ -562,7 +563,7 @@ int rand_pick_move(int num_legal_moves, int MoveList[HISTORYLENGTH]) {
  * where x = (move % 100) / 10 and y = move % 10.
  * Note this function will not check 'move' is legal or not.
  * */
-void do_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int move) {
+void do_move(BOARD Board, int turn, int move) {
     int move_x = (move % 100) / 10;
     int move_y = move % 10;
     if (move<100) {
@@ -578,8 +579,8 @@ void do_move(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int move) {
  * This function records the current game baord with current
  * game length "game_length"
  * */
-void record(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE], int game_length) {
-		memcpy(GameRecord[game_length], Board, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
+void record(BOARD Board, BOARD GameRecord[MAXGAMELENGTH], int game_length) {
+		memcpy(GameRecord[game_length], Board, sizeof(BOARD));
 		// for (int i = 0 ; i < BOUNDARYSIZE; ++i) {
 		    // for (int j = 0 ; j < BOUNDARYSIZE; ++j) {
 			// GameRecord[game_length][i][j] = Board[i][j];
@@ -589,7 +590,7 @@ void record(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int GameRecord[MAXGAMELENGTH]
 /*
  * This function counts the number of points remains in the board by Black's view
  * */
-double final_score(int Board[BOUNDARYSIZE][BOUNDARYSIZE]) {
+double final_score(BOARD Board) {
     int black, white;
     black = white = 0;
     int is_black, is_white;
@@ -620,7 +621,7 @@ double final_score(int Board[BOUNDARYSIZE][BOUNDARYSIZE]) {
 }
 #define NEXTTURN(t) ((t)==BLACK?WHITE:BLACK)
 /* */
-int simulate(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]) {
+int simulate(BOARD Board, int turn, int game_length, BOARD GameRecord[MAXGAMELENGTH]) {
     // int MoveList[HISTORYLENGTH];
     int num_legal_moves = 0;
     int return_move = 0;
@@ -655,18 +656,18 @@ int simulate(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int game_length, i
 		return 0;
 }
 typedef struct game_node {
-	int Board[BOUNDARYSIZE][BOUNDARYSIZE];
+	BOARD Board;
 	int lastmove; // not used at root
 	// int Board[BOARDSIZE][BOARDSIZE];
 	// int turn;
 	// int game_length;
 	// Other ways of storage?
 	// 			:: only store the new expanded records to true history
-	// int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE];
+	// BOARD GameRecord[MAXGAMELENGTH];
 	// USING 	:: only store the new record generated by this node
 	// // not really need to store, because the Board is exactly the info
 	// 			:: store all records when this node is reached
-	// int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE];
+	// BOARD GameRecord[MAXGAMELENGTH];
 	
 	char need_pruning;
 	char unpruned_child_N;
@@ -683,9 +684,9 @@ typedef struct game_node {
 	// struct game_node *firstChild;
 	// struct game_node *nextSibling;
 } GameNode;
-void init_game_node(GameNode * node, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int move, GameNode * parent) {
+void init_game_node(GameNode * node, BOARD Board, int move, GameNode * parent) {
 	if(Board)
-		memcpy(node->Board, Board, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
+		memcpy(node->Board, Board, sizeof(BOARD));
 	else
 		reset(node->Board);
 	node->lastmove = move;
@@ -702,7 +703,7 @@ void init_game_node(GameNode * node, int Board[BOUNDARYSIZE][BOUNDARYSIZE], int 
 	node->std = 0;
 	return;
 }
-GameNode * alloc_new_game_node(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int move, GameNode * parent) {
+GameNode * alloc_new_game_node(BOARD Board, int move, GameNode * parent) {
 	GameNode * ret = (GameNode *)malloc(sizeof(GameNode));
 	if(ret == NULL)
 		return NULL;
@@ -735,7 +736,7 @@ void free_node(GameNode * node) {
  * This function randomly generate one legal move (x, y) with return value x*10+y,
  * if there is no legal move the function will return 0.
  * */
-int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]) {
+int genmove(BOARD Board, int turn, int time_limit, int game_length, BOARD GameRecord[MAXGAMELENGTH]) {
     clock_t start_t, end_t, now_t;
     // record start time
     start_t = clock();
@@ -761,9 +762,9 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 	double logTotalN, divByNi;
 	int Ni;
 	int MoveList[HISTORYLENGTH];
-	int MovedBoard[HISTORYLENGTH][BOUNDARYSIZE][BOUNDARYSIZE];
+	BOARD MovedBoard[HISTORYLENGTH];
 	int num_legal_moves;
-	int SimBoard[BOUNDARYSIZE][BOUNDARYSIZE];
+	BOARD SimBoard;
 	double result;
 	int i, j, timeUp = 0;
 	int newBWinN, newWWinN, newDrawN;
@@ -859,7 +860,7 @@ int genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int turn, int time_limit, int
 		for(j = 0; !timeUp && j < _simuPerNewNode; j ++) {
 			for(i = 0; i < node->childN; i ++) {
 				//               vvvvvvvvvvvvvvvvvvvvvvv Dangerous???  how about USE MovedBoard ?
-				memcpy(SimBoard, node->Children[i]->Board, sizeof(int) * BOUNDARYSIZE * BOUNDARYSIZE);
+				memcpy(SimBoard, node->Children[i]->Board, sizeof(BOARD));
 				record(SimBoard, GameRecord, node_game_length+1);		
 				simulate(SimBoard, NEXTTURN(node_turn), node_game_length+1, GameRecord);
 				simuCount ++ ;
@@ -1062,7 +1063,7 @@ const char *KnownCommands[]={
 	"showhistory"
 };
 
-void gtp_final_score(int Board[BOUNDARYSIZE][BOUNDARYSIZE]) {
+void gtp_final_score(BOARD Board) {
     double result;
     result = final_score(Board);
     result -= _komi;
@@ -1077,7 +1078,7 @@ void gtp_final_score(int Board[BOUNDARYSIZE][BOUNDARYSIZE]) {
 	cout << "0" << endl << endl<< endl;;
     }
 }
-void gtp_undo(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int *game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]) {
+void gtp_undo(BOARD Board, int *game_length, BOARD GameRecord[MAXGAMELENGTH]) {
     if (*game_length > 0) {
 		(*game_length) --;
 		for (int i = 1; i <= BOARDSIZE; ++i) {
@@ -1088,7 +1089,7 @@ void gtp_undo(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int *game_length, int GameR
     }
     cout << "= " << endl << endl;
 }
-void gtp_showboard(int Board[BOUNDARYSIZE][BOUNDARYSIZE]) {
+void gtp_showboard(BOARD Board) {
     cout <<"= "<<endl;
     for (int i = 1; i <=BOARDSIZE; ++i) {
 	cout << "#";
@@ -1143,7 +1144,7 @@ void gtp_boardsize(int size) {
 	cout << "= "<<endl<<endl;
     }
 }
-void gtp_clear_board(int Board[BOUNDARYSIZE][BOUNDARYSIZE], int NumCapture[]) {
+void gtp_clear_board(BOARD Board, int NumCapture[]) {
     reset(Board);
     NumCapture[BLACK] = NumCapture[WHITE] = 0;
     cout << "= "<<endl<<endl;
@@ -1152,7 +1153,7 @@ void gtp_komi(double komi) {
     _komi = komi;
     cout << "= "<<endl<<endl;
 }
-void gtp_play(char Color[], char Move[], int Board[BOUNDARYSIZE][BOUNDARYSIZE], int game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]) {
+void gtp_play(char Color[], char Move[], BOARD Board, int game_length, BOARD GameRecord[MAXGAMELENGTH]) {
     int turn, move_i, move_j;
     if (Color[0] =='b' || Color[0] == 'B')
 	turn = BLACK;
@@ -1173,7 +1174,7 @@ void gtp_play(char Color[], char Move[], int Board[BOUNDARYSIZE][BOUNDARYSIZE], 
     }
     cout << "= "<<endl<<endl;
 }
-void gtp_genmove(int Board[BOUNDARYSIZE][BOUNDARYSIZE], char Color[], int time_limit, int game_length, int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]){
+void gtp_genmove(BOARD Board, char Color[], int time_limit, int game_length, BOARD GameRecord[MAXGAMELENGTH]){
     int turn = (Color[0]=='b'||Color[0]=='B')?BLACK:WHITE;
     int move = genmove(Board, turn, time_limit, game_length, GameRecord);
     int move_i, move_j;
@@ -1197,10 +1198,10 @@ void gtp_main(int display) {
     char Parameter[COMMANDLENGTH]="";
     char Move[4]="";
     char Color[6]="";
-    int Board[BOUNDARYSIZE][BOUNDARYSIZE]={{0}};
+    BOARD Board={{0}};
 	reset(Board);
     int NumCapture[3]={0};// 1:Black, 2: White
-    int GameRecord[MAXGAMELENGTH][BOUNDARYSIZE][BOUNDARYSIZE]={{{0}}};
+    BOARD GameRecord[MAXGAMELENGTH]={{{0}}};
     int ivalue;
     double dvalue;
     int time_limit = DEFAULTTIME;
